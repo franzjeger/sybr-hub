@@ -797,7 +797,7 @@
   /* Zero specificity (:where), so a margin utility on the card still wins. */
   :where(.card + .card) { margin-top: var(--space-4); }
   /* Inside any grid container, kill the sibling margin — it breaks row alignment */
-  :where([style*="display:grid"], .grid, .card-grid) > :where(.card + .card) { margin-top: 0; }
+  :where(.grid, .card-grid) > :where(.card + .card) { margin-top: 0; }
   .card-clickable { cursor: pointer; }
   .card-clickable:hover { border-color: var(--blue); box-shadow: var(--shadow-md), 0 0 0 1px rgba(77,159,181,0.15); transform: translateY(-2px); }
   /* The one card title: the customer page's, Administrasjon's and the
@@ -1438,20 +1438,6 @@
     /* Setup log shorter */
     .setup-log { height: 240px; }
 
-    /* Inline grids: force 2 columns on tablet */
-    [style*="grid-template-columns:repeat(4"] {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
-    [style*="grid-template-columns: repeat(4"] {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
-    [style*="grid-template-columns:repeat(3"] {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
-    [style*="grid-template-columns: repeat(3"] {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
-
     /* Footer */
     footer { padding: 10px 16px; font-size: var(--font-xs); flex-wrap: wrap; }
 
@@ -1528,12 +1514,6 @@
     }
     /* ── Dashboard KPI grid: 2 cols on phone for info density ─────────── */
     .summary-grid { grid-template-columns: repeat(2, 1fr) !important; }
-    /* The KPI row right under the dashboard tab bar uses an inline-style
-       4-column grid — force to 2 cols as well. */
-    #view-overview [style*="grid-template-columns:repeat(4"],
-    #view-overview [style*="grid-template-columns: repeat(4"] {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
 
     /* ── Cards tighter on phones ──────────────────────────────────────── */
     .card { padding: 14px; }
@@ -1581,8 +1561,6 @@
     /* ── Typography tweaks for readability on small screens ───────────── */
     .card-title { font-size: var(--font-base); line-height: 1.4; }
     .empty-desc { line-height: 1.6; }
-    /* Give uppercase labels a bit more letter-spacing on small text */
-    [style*="text-transform:uppercase"][style*="letter-spacing"] { letter-spacing: 0.8px; }
 
     /* ── Tags and pills: don't overflow card edges ────────────────────── */
     .card { overflow-wrap: normal; }
@@ -1705,26 +1683,6 @@
     .empty-title { font-size: var(--font-md); }
     .empty-icon { font-size: 36px; }
 
-    /* Inline grids: single column on phone */
-    [style*="grid-template-columns:repeat(4"] {
-      grid-template-columns: 1fr !important;
-    }
-    [style*="grid-template-columns: repeat(4"] {
-      grid-template-columns: 1fr !important;
-    }
-    [style*="grid-template-columns:repeat(3"] {
-      grid-template-columns: 1fr !important;
-    }
-    [style*="grid-template-columns: repeat(3"] {
-      grid-template-columns: 1fr !important;
-    }
-    [style*="grid-template-columns:140px"] {
-      grid-template-columns: 1fr !important;
-    }
-    [style*="grid-template-columns: 140px"] {
-      grid-template-columns: 1fr !important;
-    }
-
     /* Progress row */
     .progress-row { gap: 8px; }
     .progress-label { font-size: var(--font-sm); }
@@ -1742,12 +1700,6 @@
 
     /* Setup log: shorter */
     .setup-log { height: 200px; font-size: var(--font-xs); }
-
-    /* View header rows: wrap */
-    [style*="display:flex"][style*="justify-content:space-between"] {
-      flex-wrap: wrap !important;
-      gap: 8px !important;
-    }
   }
   /* ── Shortcuts help modal ── */
 
@@ -3044,6 +2996,8 @@ textarea.field-input { resize: vertical; }
 .audit-finding-text { flex: 1 1 220px; }
 .scope-group { min-width: 220px; flex: 1; }
 .checkbox { accent-color: var(--blue); width: 15px; height: 15px; cursor: pointer; }
+/* A checkbox or radio button and its text: the whole label is the target. */
+.check-label { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
 /* A choice in a list of choices: an organisation in IT Glue. */
 .picker-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); cursor: pointer; border-bottom: 1px solid var(--border); }
 .picker-row.is-match { background: color-mix(in srgb, var(--blue) 10%, transparent); }
@@ -3112,6 +3066,10 @@ textarea.field-input { resize: vertical; }
 .device-card { padding: var(--space-3); display: grid; grid-template-rows: 24px 20px 1fr; height: 100%; border-left: 3px solid var(--tone, var(--border)); }
 .device-card.is-short { grid-template-rows: 24px 1fr; }
 .device-card-head { display: flex; align-items: center; height: 24px; overflow: hidden; }
+/* Its name, in the head: cut short rather than wrapped. */
+.device-card-name { flex: 1; min-width: 0; font-size: var(--font-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* What was read from it, under the head: label and value, two to a row. */
+.device-card-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); align-content: start; padding-top: var(--space-2); font-size: var(--font-sm); color: var(--text-muted); }
 .device-card-sub { font-size: var(--font-sm); color: var(--text-muted); line-height: 20px; height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The fleet (Verktøy › Nettverk › FortiGate): when a card was last read,
    and the line above the cards that says the list is not live. */
@@ -3214,7 +3172,7 @@ textarea.field-input { resize: vertical; }
   background: none; border: 1px solid var(--blue); color: var(--blue); border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2); font: inherit; font-size: var(--font-xs); font-weight: 600;
 }
-/* Shown by script while an audit runs (style.display, read back by app-audit.js). */
+/* Shown while an audit runs: the hidden attribute, set and read back by app-audit.js. */
 .audit-indicator {
   display: flex; align-items: center; gap: var(--space-2); cursor: pointer;
   padding: var(--space-1) var(--space-3); border: none; border-radius: var(--radius-full);

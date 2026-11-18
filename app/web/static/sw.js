@@ -10,10 +10,18 @@
 //                    there were no worker. Live data, sign-in and tokens,
 //                    reports decrypted per request and the RDP/VNC tunnel
 //                    never touch the cache, and offline means they fail.
+//                    One opened as a page (a report in a new tab) is
+//                    answered with the browser's preloaded response as it
+//                    came: a preload the worker leaves unused is thrown away
+//                    and the request made a second time.
 //   a page load      the network, every time, and the response is not kept.
 //                    The shell names the asset versions, so a kept shell
 //                    would hand the next deploy's browsers the old assets.
-//                    When the network fails, the offline page.
+//                    The browser starts the request while the worker wakes
+//                    (navigation preload), and the worker answers with it.
+//                    When the network fails, or a proxy in front of the hub
+//                    answers 502, 503 or 504 while the hub restarts, the
+//                    offline page, which reloads once the hub answers.
 //   /static/...?v=   cache first. The server versions every asset URL by
 //                    content and marks a response immutable only when the
 //                    version is the file's own, and only such a response is
@@ -21,7 +29,8 @@
 //                    a redirect, with Cache-Control: immutable. An error, a
 //                    sign-in page or an old version under a new URL is not.
 //   other /static/   the network; the copy kept at install (the offline
-//                    page's own files) when it fails.
+//                    page's own files) when it fails or a proxy answers
+//                    502, 503 or 504.
 //   anything else    nothing.
 //
 // CACHE_VERSION below is a placeholder and is never served as written.
@@ -35,6 +44,10 @@ const CACHE_PREFIX = 'msptoolkit-';
 const OFFLINE_PAGE = '/static/offline.html';
 const PRECACHE = [OFFLINE_PAGE, '/static/offline.css', '/static/offline.js'];
 const UNTOUCHED = ['/api/', '/audit_data/', '/guacamole/'];
+// What a reverse proxy answers while the hub behind it is down or restarting.
+// For a page load or a file the worker keeps, that is the network failing,
+// not an answer to show. The hub's own pages never answer with these.
+const PROXY_DOWN = [502, 503, 504];
 
 // No skipWaiting() here. A new worker waits until the operator accepts the
 // "new version" toast (the message handler below) or every tab is closed.
@@ -62,6 +75,9 @@ self.addEventListener('activate', (event) => {
       // The first worker also takes the page that installed it, so that page
       // is controlled without a reload. The page knows this is not an update.
       self.clients.claim(),
+      // A page load no longer waits for the worker to start before its
+      // request goes out (see navigate below).
+      self.registration.navigationPreload && self.registration.navigationPreload.enable(),
     ])
   );
 });
@@ -102,15 +118,33 @@ function offlinePage() {
   return caches.match(OFFLINE_PAGE).then((page) => page || Response.error());
 }
 
+function proxyDown(resp) {
+  return PROXY_DOWN.includes(resp.status);
+}
+
+// The preloaded response when the browser made one (undefined when it did
+// not, for instance before this worker enabled preload), else the network.
+function navigate(event) {
+  return Promise.resolve(event.preloadResponse)
+    .then((preloaded) => preloaded || fetch(event.request))
+    .then((resp) => (proxyDown(resp) ? offlinePage() : resp))
+    .catch(offlinePage);
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (UNTOUCHED.some((prefix) => url.pathname.startsWith(prefix))) return;
+  if (UNTOUCHED.some((prefix) => url.pathname.startsWith(prefix))) {
+    if (req.mode === 'navigate') {
+      event.respondWith(Promise.resolve(event.preloadResponse).then((preloaded) => preloaded || fetch(req)));
+    }
+    return;
+  }
 
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(offlinePage));
+    event.respondWith(navigate(event));
     return;
   }
   if (!url.pathname.startsWith('/static/')) return;
@@ -119,6 +153,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   event.respondWith(
-    fetch(req).catch(() => caches.match(req).then((kept) => kept || Response.error()))
+    fetch(req)
+      .then((resp) => (proxyDown(resp) ? caches.match(req).then((kept) => kept || resp) : resp))
+      .catch(() => caches.match(req).then((kept) => kept || Response.error()))
   );
 });

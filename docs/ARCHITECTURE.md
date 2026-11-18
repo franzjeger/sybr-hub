@@ -874,12 +874,18 @@ hand-maintained list of assets beside either.
 stale.** `sw.js` is served from `/static/` with `Service-Worker-Allowed: /` and
 registered with scope `/` (with its default scope, `/static/`, it controlled no
 page). A page load always goes to the network and is never kept, because the
-shell names the asset versions; when the network fails, the worker answers with
-the offline page it stored at install. A `/static/` URL with `?v=` is served
-cache-first, and only a plain same-origin 200 the server marked `immutable` is
-kept, so an error, a sign-in page or a stale version is not. `/api/`,
-`/audit_data/` and `/guacamole/` never reach its cache: the worker leaves them
-to the browser.
+shell names the asset versions. The browser sends it while the worker starts
+(navigation preload), and the worker answers with that response rather than
+fetching again. When the network fails, or a reverse proxy answers 502, 503 or
+504 while the hub restarts, the worker answers with the offline page it stored
+at install. It says which of the two it is (`navigator.onLine`), in the
+interface's language, and reloads into the app once `/api/health` answers. A `/static/`
+URL with `?v=` is served cache-first, and only a plain same-origin 200 the
+server marked `immutable` is kept, so an error, a sign-in page or a stale
+version is not. `/api/`, `/audit_data/` and `/guacamole/` never reach its
+cache: the worker leaves them to the browser, except that one opened as a page
+is answered with its preloaded response as it came (an unused preload would be
+thrown away and the request made twice).
 
 **A new version waits to be accepted.** A changed asset installs a new service
 worker, which waits instead of taking over (`skipWaiting()` only on the

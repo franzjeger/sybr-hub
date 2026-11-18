@@ -164,7 +164,7 @@
 
       <!-- The VPN chip: shown while a tunnel is up, and when the server
            cannot be reached; quiet when everything is fine. Polls /api/health. -->
-      <button data-view-gate="vpn" data-write class="status-chip" id="conn-status" data-click-handler="showView" data-view="vpn" data-i18n-title="live" title="Live" style="display:none;">
+      <button data-view-gate="vpn" data-write class="status-chip" id="conn-status" data-click-handler="showView" data-view="vpn" data-i18n-title="live" title="Live" hidden>
         <span class="dot" id="conn-status-dot"></span>
         <span id="vpn-chip-prefix" hidden>VPN&#160;&#183;&#160;</span>
         <span id="conn-status-label">Live</span>
@@ -172,7 +172,7 @@
 
       <!-- Audit-running indicator (visible only while an audit runs). -->
       <button data-view-gate="audit" id="audit-running-indicator" data-click-handler="showView" data-view="audit" data-i18n-title="tip_audit_running_click" title="Audit kjører. Klikk for å se status"
-        class="audit-indicator" style="display:none;">
+        class="audit-indicator" hidden>
         <span class="dot"></span>
         <span data-i18n="msg_audit_running_indicator">Audit kjører</span>
       </button>
@@ -383,7 +383,7 @@
             </div>
             <div class="integ-actions flex flex-col gap-2">
               <button class="btn btn-primary" data-click-handler="toggleIntegConfig" data-config="gdap-config" data-i18n="btn_configure">Konfigurer</button>
-              <button class="btn btn-default" id="gdap-discover-btn" data-click-handler="gdapDiscoverCustomers" style="display:none;" data-i18n="gdap_btn_discover">Oppdag kunder</button>
+              <button class="btn btn-default" id="gdap-discover-btn" data-click-handler="gdapDiscoverCustomers" hidden data-i18n="gdap_btn_discover">Oppdag kunder</button>
             </div>
             <div id="gdap-config" class="integ-config">
               <label class="field-label" for="input-gdap-tenant" data-i18n="gdap_lbl_partner_tenant">Partner Tenant ID</label>
@@ -399,7 +399,7 @@
               <div id="gdap-config-msg" class="text-sm mt-2"></div>
               <div id="gdap-customer-count" class="text-sm mt-2 text-muted"></div>
             </div>
-            <div id="gdap-discover-panel" class="border-t pt-3" style="display:none;">
+            <div id="gdap-discover-panel" class="border-t pt-3" hidden>
               <div class="subhead" data-i18n="gdap_lbl_discovered">Oppdagede kunder</div>
               <div id="gdap-discover-list" class="max-h-md overflow-y-auto"></div>
               <div class="flex gap-2 mt-3">
@@ -498,7 +498,7 @@
               <button data-write class="btn btn-default" data-click-handler="openITGlueImport" data-i18n="btn_import_customers_itglue">Importer kunder</button>
               <button data-write class="btn btn-default" id="itglue-sync-doc-btn" data-click-handler="itglueSyncAllDocumentation" data-i18n="btn_sync_documentation">Synkroniser dokumentasjon</button>
             </div>
-            <div id="itglue-sync-status" class="mt-2 text-sm" style="display:none;"></div>
+            <div id="itglue-sync-status" class="mt-2 text-sm" hidden></div>
             <div id="itglue-config" class="integ-config">
               <label class="field-label" for="input-itglue-key" data-i18n="lbl_api_key">API-nokkel</label>
               <input class="field-input" id="input-itglue-key" type="password" data-i18n-placeholder="it_glue_api_key" placeholder="IT Glue API key">
@@ -737,7 +737,7 @@
                   <span id="unifi-inform-host-result" class="text-xs text-muted self-center" role="status"></span>
                 </div>
               </div>
-              <div id="unifi-sm-sites" class="mt-4 border-t pt-3" style="display:none;">
+              <div id="unifi-sm-sites" class="mt-4 border-t pt-3" hidden>
                 <div class="flex items-center justify-between mb-2">
                   <div class="text-ui fw-semibold" data-i18n="lbl_your_sites">Dine siter</div>
                   <button class="btn btn-ghost btn-sm" data-click-handler="unifiSmLoadSites" data-i18n="btn_refresh">Oppdater</button>
@@ -885,7 +885,7 @@
               </div>
 
               <!-- CLI/subscription mode -->
-              <div id="claude-mode-cli" style="display:none;">
+              <div id="claude-mode-cli" hidden>
                 <p class="text-sm text-muted mb-2"><span data-i18n="claude_cli_hint_before">Bruker din Claude Max/Pro-subscription via</span> <code>claude</code> <span data-i18n="claude_cli_hint_after">CLI. Ingen ekstra kostnad per forespørsel.</span></p>
                 <p class="text-xs text-warning mb-2" data-i18n="msg_claude_cli_note">Merk: CLI-modus er tregere enn API (ny prosess per melding) og har ikke verktøy-støtte. API-modus anbefales for best opplevelse.</p>
                 <div id="claude-cli-status" class="inset text-sm text-muted mb-2" data-i18n="msg_checking_cli">Sjekker CLI...</div>
@@ -954,7 +954,7 @@
           <div class="card admin-card">
             <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div class="flex items-center gap-3">
-                <label class="flex items-center gap-2 cursor-pointer">
+                <label class="check-label">
                   <input type="checkbox" id="alert-master-toggle" data-change-handler="alertToggleMaster">
                   <span class="fw-semibold text-base" data-i18n="lbl_alerts_enabled">Varsler aktivert</span>
                 </label>
@@ -965,11 +965,11 @@
 
             <!-- Notification channels -->
             <div class="flex flex-wrap items-center gap-y-3 gap-x-6 mb-4 text-ui">
-              <label class="flex items-center gap-2 cursor-pointer nowrap">
+              <label class="check-label nowrap">
                 <input type="checkbox" id="alert-notify-teams" data-change-handler="alertSaveConfig">
                 <span data-i18n="lbl_notify_teams">Teams webhook</span>
               </label>
-              <label class="flex items-center gap-2 cursor-pointer nowrap">
+              <label class="check-label nowrap">
                 <input type="checkbox" id="alert-notify-email" data-change-handler="alertSaveConfig">
                 <span data-i18n="lbl_notify_email">E-post</span>
               </label>
@@ -1052,7 +1052,7 @@
           <h1 class="page-title" data-i18n="tab_users">Brukere</h1>
           <button class="btn btn-primary btn-sm" data-click-handler="showAddUserForm" data-i18n="btn_add_user">Legg til bruker</button>
         </div>
-      <div id="add-user-form" class="inset mb-4" style="display:none;">
+      <div id="add-user-form" class="inset mb-4" hidden>
         <div class="grid grid-cols-2 gap-3 mb-3">
           <input id="new-user-username" class="field-input" type="text" data-i18n-placeholder="placeholder_username" placeholder="Username">
           <input id="new-user-displayname" class="field-input" type="text" data-i18n-placeholder="placeholder_display_name" placeholder="Display name">
@@ -1092,7 +1092,7 @@
 
         <label class="field-label mt-3" data-i18n="lbl_company_logo">Firmalogo</label>
         <div class="flex items-center gap-3 mb-1">
-          <img id="logo-preview" class="logo-preview" alt="" style="display:none;">
+          <img id="logo-preview" class="logo-preview" alt="" hidden>
           <span id="logo-no-preview" class="text-xs text-muted" data-i18n="err_no_logo_uploaded">Ingen logo lastet opp</span>
         </div>
         <div class="flex items-center gap-2">
@@ -1184,13 +1184,13 @@
           <button class="btn btn-default btn-sm" data-click-handler="showRestoreKeyInput" data-i18n="btn_restore_key">Gjenopprett nøkkel</button>
         </div>
 
-        <div id="encryption-key-display" class="mb-3" style="display:none;">
+        <div id="encryption-key-display" class="mb-3" hidden>
           <div class="text-xs text-muted mb-1" data-i18n="lbl_master_key">Master-nøkkel (klikk for å kopiere):</div>
           <code id="encryption-key-value" data-click-handler="copyEncryptionKey" class="cursor-pointer text-xs break-all block p-2 bg-input border rounded-sm"></code>
           <span id="encryption-copy-msg" class="text-xs text-success"></span>
         </div>
 
-        <div id="encryption-restore-input" class="mb-3" style="display:none;">
+        <div id="encryption-restore-input" class="mb-3" hidden>
           <input class="field-input text-xs mb-2" id="input-restore-key" type="text" data-i18n-placeholder="msg_paste_key_here" placeholder="Lim inn base64-nøkkel her">
           <button data-write class="btn btn-primary btn-sm" data-click-handler="restoreEncryptionKey" data-i18n="btn_import_key">Importer nøkkel</button>
           <span id="encryption-restore-msg" class="text-xs ml-2"></span>
@@ -1473,7 +1473,7 @@
            below answers "did every section run"; a technician's first question
            after a run is "what is wrong", and that answer was spread across
            twenty-six rows with the longest lists truncated behind "+n til". -->
-      <div id="audit-findings" class="mb-4" style="display:none;"></div>
+      <div id="audit-findings" class="mb-4" hidden></div>
 
       <!-- Sections table -->
       <div class="card p-0 overflow-hidden">
@@ -1493,7 +1493,7 @@
       </div>
 
       <!-- Post-audit: summary + actions (hidden until done) -->
-      <div id="audit-done-area" class="mt-4" style="display:none;">
+      <div id="audit-done-area" class="mt-4" hidden>
         <div class="summary-grid">
           <div class="summary-box">
             <div class="summary-num num-ok"  id="sum-done">0</div>
@@ -1517,13 +1517,13 @@
       <div class="cust-section-head">
         <h3 class="cust-section-title" data-i18n="hdr_runs">Kjøringer</h3>
         <div class="cust-section-actions" id="compare-bar">
-          <button data-write class="btn btn-default btn-sm text-danger border-danger" id="btn-delete-selected" style="display:none;"
+          <button data-write class="btn btn-default btn-sm text-danger border-danger" id="btn-delete-selected" hidden
             data-click-handler="deleteSelectedRuns" data-i18n="btn_delete_selected">Slett valgte</button>
-          <button class="btn btn-primary" id="btn-compare" style="display:none;"
+          <button class="btn btn-primary" id="btn-compare" hidden
             data-click-handler="runComparison" data-i18n="btn_compare_selected">Sammenlign valgte</button>
         </div>
       </div>
-      <div id="compare-result" style="display:none;"></div>
+      <div id="compare-result" hidden></div>
       <div id="history-content">
         <div class="empty-note">
           <div class="loader loader-lg mx-auto mt-0 mb-4"></div>
@@ -1654,7 +1654,7 @@
       <div id="expiry-banner-area"></div>
       <div id="cust-details-body"></div>
       <div id="view-files">
-      <div id="files-no-customer" style="display:none;">
+      <div id="files-no-customer" hidden>
         <div class="text-center py-12 px-0 text-muted">
           <div class="mb-3"><span class="ic"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span></div>
           <div class="text-base" data-i18n="files_no_customer">Ingen kunde valgt.</div>
@@ -1662,7 +1662,7 @@
         </div>
       </div>
 
-      <div id="files-content" style="display:none;">
+      <div id="files-content" hidden>
         <!-- Credentials -->
         <div class="card">
           <div class="card-title"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span><span data-i18n="hdr_connection_info">Tilkoblingsinformasjon</span></div>
@@ -1713,7 +1713,7 @@
         <button class="btn btn-ghost btn-sm" data-click-handler="loadLogs" data-i18n="btn_refresh">Oppdater</button>
         <button class="btn btn-ghost btn-sm" data-click-handler="copyLogs" data-i18n="log_copy">Kopier</button>
         <button data-write class="btn btn-default btn-sm text-danger" data-click-handler="clearLogs" data-i18n="log_clear">T&#248;m logg</button>
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <label class="check-label text-sm">
           <input type="checkbox" id="log-auto-refresh" data-change-handler="toggleLogAutoRefresh"> <span data-i18n="log_auto_refresh_3s">Auto-refresh (3s)</span>
         </label>
       </div>
@@ -1791,7 +1791,7 @@
         <option value="local" data-i18n="opt_local_shell">Lokal shell</option>
         <option value="ssh" data-i18n="opt_ssh_to_host">SSH til vert</option>
       </select>
-      <div id="term-ssh-opts" class="items-center gap-2" style="display:none;">
+      <div id="term-ssh-opts" class="flex items-center gap-2" hidden>
         <select id="term-host-select" class="field-input field-input-sm w-auto">
           <option value="" data-i18n="opt_select_host">Velg vert...</option>
         </select>
@@ -1799,7 +1799,7 @@
         <input id="term-host-manual" type="text" data-i18n-placeholder="ph_user_at_host_port" placeholder="bruker@host:port" class="field-input field-input-sm input-medium">
       </div>
       <button class="btn btn-primary btn-sm" data-click-handler="termConnect" id="term-connect-btn" data-i18n="vpn_connect">Koble til</button>
-      <button class="btn btn-ghost btn-sm text-danger" data-click-handler="termDisconnect" id="term-disconnect-btn" style="display:none;" data-i18n="vpn_disconnect">Koble fra</button>
+      <button class="btn btn-ghost btn-sm text-danger" data-click-handler="termDisconnect" id="term-disconnect-btn" hidden data-i18n="vpn_disconnect">Koble fra</button>
       <div class="ml-auto flex items-center gap-2">
         <button class="icon-btn-sm text-sm" data-click-handler="termChangeFontSize" data-delta="-1" data-i18n-title="smaller" title="Smaller">A-</button>
         <button class="icon-btn-sm text-base" data-click-handler="termChangeFontSize" data-delta="1" data-i18n-title="larger" title="Larger">A+</button>
@@ -2075,7 +2075,7 @@
     <div class="modal-desc" data-i18n="itglue_upload_desc">Velg hvilke rapporter du vil laste opp og til hvilken organisasjon.</div>
     <div id="itglue-upload-content" class="my-4"></div>
     <div class="flex gap-2 justify-end mt-4">
-      <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-upload-modal" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-ghost" data-click-handler="closeModal" data-target="itglue-upload-modal" data-i18n="btn_cancel">Avbryt</button>
       <button data-write class="btn btn-primary" id="btn-itglue-upload-go" data-click-handler="executeITGlueUpload" disabled data-i18n="btn_upload">Last opp</button>
     </div>
   </div>
@@ -2090,7 +2090,7 @@
       <div class="text-center p-6"><div class="loader loader-lg mx-auto mt-0 mb-3"></div><span data-i18n="msg_fetching_orgs_itglue">Henter organisasjoner fra IT Glue...</span></div>
     </div>
     <div class="flex gap-2 justify-end mt-4">
-      <button class="btn btn-ghost" data-click-handler="hideElement" data-target="itglue-import-modal" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-ghost" data-click-handler="closeModal" data-target="itglue-import-modal" data-i18n="btn_cancel">Avbryt</button>
       <button data-write class="btn btn-primary" id="btn-itglue-import" data-click-handler="runITGlueImport" disabled data-i18n="btn_import_selected">Importer valgte</button>
     </div>
   </div>
@@ -2138,9 +2138,9 @@
         <textarea id="manual-cust-notes" class="field-input textarea-sm"></textarea>
       </div>
     </div>
-    <div id="manual-cust-error" class="text-danger text-sm mb-2" style="display:none;"></div>
+    <div id="manual-cust-error" class="text-danger text-sm mb-2" hidden></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-click-handler="hideElement" data-target="manual-customer-modal" data-i18n="btn_cancel">Avbryt</button>
+      <button class="btn btn-ghost" data-click-handler="closeModal" data-target="manual-customer-modal" data-i18n="btn_cancel">Avbryt</button>
       <button data-write class="btn btn-primary" id="btn-manual-cust-save" data-click-handler="submitManualCustomer" data-i18n="btn_save" hidden>Lagre</button>
     </div>
   </div>

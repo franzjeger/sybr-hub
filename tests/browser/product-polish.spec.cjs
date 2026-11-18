@@ -157,14 +157,24 @@ test.describe('signed in as an administrator', () => {
     // including those other specs add, has never been audited.
     await inApp(page, app => app.showView('overview'));
     await page.locator('#view-overview .tab', {hasText: 'Oppfølging'}).click();
-    // Count from the list the page rendered, not a second request: specs
-    // running alongside add customers, and a later request then counted ones
-    // the page had not loaded yet, so the strip looked short by one.
-    await expect.poll(() => inApp(page, app => !!(app._overviewData && app._overviewData.customers))).toBe(true);
-    const never = await inApp(page, app => app._overviewData.customers.filter(c => !c.last_audit).length);
-    expect(never).toBeGreaterThan(0);
+    // Count from what the page rendered, and the way the strip counts: the
+    // list it holds and the strip it drew, read together, never audited
+    // meaning no figures (has_metrics). Specs running alongside add customers
+    // and run audits; a run in progress has a last_audit before it has
+    // figures, and a list reloaded between two reads counts one more.
+    const rendered = () => inApp(page, app => {
+      const strip = document.querySelector('.attn-strip');
+      const customers = app._overviewData && app._overviewData.customers;
+      if (!strip || !customers) return null;
+      const never = customers.filter(c => !c.has_metrics).length;
+      return {never, count: Number(strip.querySelector('.attn-title').dataset.count),
+        stated: new RegExp('(^|\\D)' + never + ' uten audit').test(strip.textContent)};
+    });
+    await expect.poll(async () => {
+      const now = await rendered();
+      return !!now && now.never > 0 && now.stated && now.count >= now.never;
+    }).toBe(true);
     const attention = page.locator('.attn-strip .attn-title');
-    await expect.poll(async () => Number(await attention.getAttribute('data-count'))).toBeGreaterThanOrEqual(never);
     const count = await attention.getAttribute('data-count');
     const green = await page.evaluate(() => {
       const probe = document.createElement('span');
@@ -175,14 +185,6 @@ test.describe('signed in as an administrator', () => {
       return value;
     });
     expect(await attention.evaluate(el => getComputedStyle(el).color)).not.toBe(green);
-    // Read the count and the strip in one go: a spec running alongside can add
-    // a customer between two reads, and the page then redraws the strip with
-    // one more than a count taken a moment earlier.
-    await expect.poll(() => inApp(page, app => {
-      const now = app._overviewData.customers.filter(c => !c.last_audit).length;
-      const strip = document.querySelector('.attn-strip');
-      return !!strip && strip.textContent.includes(now + ' uten audit');
-    })).toBe(true);
     // A never-audited customer's findings are unknown, not none.
     const row = page.locator('.customer-overview-table tbody tr', {hasText: 'Browser Alpha'});
     await expect(row.locator('.sev-count.sev-unknown')).toHaveText('Aldri auditert');

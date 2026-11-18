@@ -212,7 +212,7 @@ export async function alsoSyncCustomers() {
     if (newC.length > 0) {
       html += '<div class="max-h-sm overflow-y-auto border rounded mb-3">';
       newC.forEach(function(c) {
-        html += '<label class="flex items-center gap-2 py-2 px-3 border-b text-xs cursor-pointer">'
+        html += '<label class="picker-row text-xs">'
           + '<input type="checkbox" checked class="also-import-cb" data-name="' + esc(c.also_name) + '" data-domain="' + esc(c.also_domain||'') + '" data-id="' + esc(c.also_id||'') + '">'
           + '<span class="flex-1">' + esc(c.also_name) + '</span>'
           + '<span class="text-dim font-mono text-2xs">' + esc(c.also_domain||'') + '</span>'
@@ -341,7 +341,7 @@ export async function uniwebSync() {
   }
 }
 
-export async function uniwebPollStatus() {
+async function uniwebPollStatus() {
   var msg = document.getElementById('uniweb-config-msg');
   var btn = document.getElementById('uniweb-sync-btn');
   var d = await apiFetch('/api/uniweb/status');
@@ -440,7 +440,7 @@ export async function uniwebPollStatus() {
   }
 }
 
-export async function uniwebLoadAccounts() {
+async function uniwebLoadAccounts() {
   var container = document.getElementById('uniweb-accounts-container');
   if (!container) return;
 
@@ -651,7 +651,7 @@ async function uniwebShowImport() {
   // Search + select all
   html += '<div class="flex gap-2 items-center mb-3 flex-wrap">';
   html += '<input type="text" id="uniweb-import-search" class="field-input field-input-sm flex-field" placeholder="' + t('integ_search','Søk ...') + '" data-input-handler="uniwebFilterImport">';
-  html += '<label class="text-sm flex items-center gap-1 cursor-pointer nowrap"><input type="checkbox" id="uniweb-import-select-all" data-change-handler="uniwebToggleAllImport"> ' + t('velg_alle') + '</label>';
+  html += '<label class="check-label gap-1 text-sm nowrap"><input type="checkbox" id="uniweb-import-select-all" data-change-handler="uniwebToggleAllImport"> ' + t('velg_alle') + '</label>';
   html += '</div>';
 
   // Table
@@ -682,7 +682,7 @@ async function uniwebShowImport() {
   html += '</tbody></table></div>';
 
   // Error display area (hidden initially)
-  html += '<div id="uniweb-import-errors" class="status-box is-bad text-xs max-h-sm overflow-y-auto mt-3" style="display:none;"></div>';
+  html += '<div id="uniweb-import-errors" class="status-box is-bad text-xs max-h-sm overflow-y-auto mt-3" hidden></div>';
 
   // Buttons
   html += '<div class="flex gap-2 justify-end mt-4 flex-wrap">';
@@ -767,7 +767,7 @@ async function uniwebDoImport() {
 
   // Hide any previous errors
   var errBox = document.getElementById('uniweb-import-errors');
-  if (errBox) errBox.style.display = 'none';
+  if (errBox) errBox.hidden = true;
 
   try {
     var d = await apiFetch('/api/uniweb/import-customers', {
@@ -793,7 +793,7 @@ async function uniwebDoImport() {
           }
         });
         errBox.innerHTML = errHtml;
-        errBox.style.display = 'block';
+        errBox.hidden = false;
       }
     }
 
@@ -1167,7 +1167,7 @@ export async function itglueSyncAllDocumentation() {
 
   btn.disabled = true;
   btn.textContent = t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...');
-  status.style.display = 'block';
+  status.hidden = false;
   status.innerHTML = '<span class="text-muted">' + t('msg_itglue_syncing', 'Synkroniserer dokumentasjon...') + '</span>';
 
   try {
@@ -1414,7 +1414,7 @@ async function _loadIntegrationCards() {
     _countInteg(!!(d.gdap_configured && d.gdap_validated !== false));
     if (d.gdap_configured) {
       var _gdapBtn = document.getElementById('gdap-discover-btn');
-      if (_gdapBtn) _gdapBtn.style.display = 'block';
+      if (_gdapBtn) _gdapBtn.hidden = false;
       var _gdapCount = document.getElementById('gdap-customer-count');
       if (_gdapCount && d.gdap_customer_count) _gdapCount.textContent = d.gdap_customer_count + ' ' + t('gdap_customers_linked', 'kunder koblet');
     }
@@ -1647,7 +1647,7 @@ export async function gdapSaveConfig() {
       setStatusWarn('gdap-integ-dot', 'gdap-integ-label',
         t('gdap_status_unverified', 'Lagret, ikke verifisert'));
     }
-    document.getElementById('gdap-discover-btn').style.display = 'block';
+    document.getElementById('gdap-discover-btn').hidden = false;
     if (d.customer_count) {
       var cc = document.getElementById('gdap-customer-count');
       if (cc) cc.textContent = d.customer_count + ' ' + t('gdap_customers_linked', 'kunder koblet');
@@ -1667,7 +1667,7 @@ export async function gdapTestConnection() {
 export async function gdapDiscoverCustomers() {
   var panel = document.getElementById('gdap-discover-panel');
   var list = document.getElementById('gdap-discover-list');
-  panel.style.display = 'block';
+  panel.hidden = false;
   list.innerHTML = '<div class="text-muted text-sm">' + t('msg_loading', 'Laster...') + '</div>';
   var d = await apiFetch('/api/gdap/customers');
   if (!d || !d.customers) {
@@ -1683,7 +1683,7 @@ export async function gdapDiscoverCustomers() {
     var imported = c.already_imported;
     var gdapBadge = c.gdap_status === 'active' ? '<span class="badge badge-success ml-2">GDAP</span>' : '';
     var importedBadge = imported ? '<span class="badge badge-info ml-2">' + (c.local_auth_mode === 'gdap' ? 'GDAP' : 'Legacy') + '</span>' : '';
-    html += '<label class="flex items-center gap-2 py-2 px-1 border-b cursor-pointer text-ui">';
+    html += '<label class="picker-row px-1 text-ui">';
     html += '<input type="checkbox" class="gdap-import-cb shrink-0" value="' + esc(c.tenant_id) + '" ' + (imported ? 'checked disabled' : '') + '>';
     html += '<div class="flex-1 min-w-0">';
     html += '<div class="fw-semibold">' + esc(c.company_name) + gdapBadge + importedBadge + '</div>';
