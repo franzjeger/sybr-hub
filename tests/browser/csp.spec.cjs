@@ -274,7 +274,7 @@ test.describe('migrated controls, view by view', () => {
 
   test('hosts: the add form reacts to the device type and cancels', async () => {
     await openView(page, 'hosts');
-    await page.locator('#view-hosts [data-click-handler="hostsAdd"]').click();
+    await page.locator('#view-hosts [data-click-handler="hostsAdd"][data-i18n="btn_add_host"]').click();
     await page.locator('#host-devtype').selectOption('windows');
     await expect(page.locator('#host-username')).toHaveValue('administrator');
     await page.locator('#view-hosts [data-click-handler="hostsLoad"]').first().click();
