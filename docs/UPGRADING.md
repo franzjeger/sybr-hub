@@ -22,7 +22,7 @@ service. Restore the preserved checkout and data together if rollback is needed.
 
 ---
 
-# FortiGate fleet first read and card status (October 2026, unreleased)
+# FortiGate fleet first read and card status (October 2026, v1.3.0)
 
 No migration. API changes for scripts that read these routes:
 
@@ -39,7 +39,7 @@ No migration. API changes for scripts that read these routes:
 
 ---
 
-# Removed endpoints, migrations 30 and 31, UniFi firmware refresh (October 2026, unreleased)
+# Removed endpoints, migrations 30 and 31, UniFi firmware refresh (October 2026, v1.3.0)
 
 - **Removed, nothing in the app called them:** `GET/POST /api/setup/stream`
   (first-run setup in the web app uses `/api/setup/pkce/*`), the WebSocket
@@ -69,7 +69,7 @@ No migration. API changes for scripts that read these routes:
 
 ---
 
-# Reports and alerts in the reader's language (October 2026, unreleased)
+# Reports and alerts in the reader's language (October 2026, v1.3.0)
 
 No migration and no new permission. Scripts that read a run's files or the
 API see codes where collectors wrote English phrases:
@@ -86,7 +86,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Datto RMM deep-link and backup app recognition (October 2026, unreleased)
+# Datto RMM deep-link and backup app recognition (October 2026, v1.3.0)
 
 - **Datto RMM** needs API access enabled in Datto (Setup › Global Settings ›
   Access Control) and API keys for a user (Setup › Users) whose security
@@ -99,7 +99,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Background notifications and Graph read cooldown (October 2026, unreleased)
+# Background notifications and Graph read cooldown (October 2026, v1.3.0)
 
 - Background audit, credential, task-failure and alert-sweep messages follow
   the Hub's `ui_language`. Simple Teams cards and Slack blocks now display
@@ -114,7 +114,7 @@ Runs from before are read back by the reports; nothing needs re-running.
   original wrapping secret or master key is available. A successful recovery
   of the active installation does not prove those other copies are recoverable.
 
-# Manual app consent repair (October 2026, unreleased)
+# Manual app consent repair (October 2026, v1.3.0)
 
 - The old PKCE setup granted Graph only. It omitted Exchange Online and
   Purview `Exchange.ManageAsApp`, Exchange Administrator for Exchange and
@@ -147,7 +147,7 @@ Runs from before are read back by the reports; nothing needs re-running.
   this app. It is reported separately from missing Graph consent. The audit
   does not register a backup controller, change billing or enable protection.
 
-# Manual customer sign-in recovery (October 2026, unreleased)
+# Manual customer sign-in recovery (October 2026, v1.3.0)
 
 - Reload the Hub page after upgrading. Setup now includes **New sign-in**
   and explains server-side DNS/connection failures in its progress log.
@@ -158,7 +158,7 @@ Runs from before are read back by the reports; nothing needs re-running.
   retry before expiry. Once delivery is uncertain or Microsoft has answered,
   use a new sign-in. No background retry creates a tenant application.
 
-# Live audit log follow-up (October 2026, unreleased)
+# Live audit log follow-up (October 2026, v1.3.0)
 
 - Risk detections now declare `IdentityRiskEvent.Read.All` as a required read
   permission. Existing app registrations need renewed administrator consent
@@ -174,7 +174,7 @@ Runs from before are read back by the reports; nothing needs re-running.
   remains a data-coverage gap when a historical report is rebuilt without
   its original section statuses. Rebuilding does not collect missing mail data.
 
-# Correctness backlog B6–B10 (unreleased)
+# Correctness backlog B6–B10 (v1.3.0)
 
 - **`POST /api/export/excel` appends a column**, "Ikke målte verdier" in
   Norwegian or "Unmeasured values" in English. Existing columns retain their
@@ -201,7 +201,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Font served by the hub (unreleased)
+# Font served by the hub (v1.3.0)
 
 - **The interface no longer loads anything from Google.** Cairo is served
   from `/static/vendor/`, and the CSP's `style-src` and `font-src` no longer
@@ -210,7 +210,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Frontend cleanup (unreleased)
+# Frontend cleanup (v1.3.0)
 
 - **Set the UniFi inform host** in Administrasjon › Integrasjoner › UniFi
   (`unifi_inform_host` in `POST /api/settings`, admin only). Set-Inform on a
@@ -231,7 +231,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Alerts and exports (unreleased)
+# Alerts and exports (v1.3.0)
 
 - **Exports no longer leave a plaintext copy on disk.** `/api/report/csv`
   wrote `audit_export_<kunde>.csv` into the run folder and
@@ -253,7 +253,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# A customer's FortiGate and UniFi are set up on its page (unreleased)
+# A customer's FortiGate and UniFi are set up on its page (v1.3.0)
 
 - **Verktøy › Nettverk lost its Enheter and Audit tabs** and its "Kunde"
   field. A customer's FortiGate and UniFi link are added, edited, tested and
@@ -275,7 +275,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Automatic audit of one customer names the customer (unreleased)
+# Automatic audit of one customer names the customer (v1.3.0)
 
 - **The one-customer mode audited the setup staging slot**, the customer set
   up last, whoever that was. It now audits a customer chosen under
@@ -290,7 +290,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Report outputs in the report's language (unreleased)
+# Report outputs in the report's language (v1.3.0)
 
 - **`POST /api/report/csv` takes an optional `lang`** (`"no"` or `"en"`,
   default `"no"`), as `/api/report/generate` does. A value the audit did not
@@ -307,7 +307,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# UniFi firmware table refreshed (unreleased)
+# UniFi firmware table refreshed (v1.3.0)
 
 - **UniFi firmware verdicts change on the next read.** The table is
   refreshed from Ubiquiti's own firmware feed and release notes (2026-10-04)
@@ -324,7 +324,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Offline page and service worker (unreleased)
+# Offline page and service worker (v1.3.0)
 
 - **The service worker now controls the interface.** It was registered at
   `/static/` and controlled no page; it now registers with scope `/`, and
@@ -343,7 +343,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Every call names its customer (unreleased)
+# Every call names its customer (v1.3.0)
 
 - **The server keeps no "active customer".** Each browser tab works on its
   own customer, so two tabs on two customers no longer save notes, list runs
@@ -381,7 +381,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Varsler from stored state (unreleased)
+# Varsler from stored state (v1.3.0)
 
 - **Database migrations 26 and 27** add `tls_endpoints` and
   `device_firmware`. Both start empty and fill as TLS checks and firmware
@@ -402,7 +402,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Navigation (unreleased)
+# Navigation (v1.3.0)
 
 - **Settings moved to Administrasjon,** a page in the avatar menu
   (`#/admin/<pane>`), admins only. Integrasjoner is a pane there and no
@@ -422,7 +422,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# English reports and network finding ids (unreleased)
+# English reports and network finding ids (v1.3.0)
 
 - **An English report is English throughout.** The CIS details, the
   "cannot be verified" lines, the score's missing-data notes, the standard's
@@ -438,7 +438,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Backup of the Microsoft 365 data (unreleased)
+# Backup of the Microsoft 365 data (v1.3.0)
 
 - **Grant two Graph application permissions for the check to work:**
   `BackupRestore-Control.Read.All` (whether Microsoft 365 Backup is enabled)
@@ -461,7 +461,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Forwarding, DKIM and Advisor ids (unreleased)
+# Forwarding, DKIM and Advisor ids (v1.3.0)
 
 - **Run a new audit before trusting the forwarding findings.** Inbox rules and
   mailbox forwarding to a recipient in the directory were all reported as
@@ -484,7 +484,7 @@ Runs from before are read back by the reports; nothing needs re-running.
 
 ---
 
-# Azure VM backup coverage (unreleased)
+# Azure VM backup coverage (v1.3.0)
 
 - **Earlier reports may have listed backed-up VMs as unprotected.** Until
   this fix, every Azure VM in scope appeared under "VMs without backup", with

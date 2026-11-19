@@ -8,6 +8,10 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+Ingenting ennå.
+
+## v1.3.0 (2026-11-19)
+
 ### Sikkerhetsoppdateringer i avhengigheter
 
 - DOMPurify 3.4.17 (vendret og låst) retter tre omgåelser av rensingen.
