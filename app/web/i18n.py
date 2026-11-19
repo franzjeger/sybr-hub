@@ -1099,6 +1099,12 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "Fant ikke filen: {path}",
         "asset not found: {path}",
     ),
+    "err_baseline_deploy_disabled": (
+        "Utrulling av baseline er slått av til den har plan, gjenopprettingspunkt og logg."
+        " Bruk Conditional Access-utrulling i stedet.",
+        "Baseline deployment is switched off until it has a plan, a restore point and logging."
+        " Use Conditional Access deployment instead.",
+    ),
     "err_gdap_tenant_client_required": (
         "partner_tenant_id og client_id er påkrevd",
         "partner_tenant_id and client_id are required",

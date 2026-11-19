@@ -1695,6 +1695,11 @@ export async function gdapDiscoverCustomers() {
     if (c.gdap_roles && c.gdap_roles.length) {
       html += '<div class="text-2xs text-muted mt-0-5">' + t('gdap_roles', 'Roller') + ': ' + esc(c.gdap_roles.join(', ')) + '</div>';
     }
+    // GDAP gives roles to people, not to the hub's app: each customer has to
+    // consent to the (read-only) partner app once before audits can run.
+    if (c.consent_url) {
+      html += '<div class="text-2xs mt-0-5"><a href="' + esc(c.consent_url) + '" target="_blank" rel="noopener noreferrer" title="' + esc(t('gdap_consent_hint', '')) + '">' + t('gdap_consent_link', 'Gi samtykke i kundens tenant') + '</a></div>';
+    }
     html += '</div></label>';
   });
   list.innerHTML = html;

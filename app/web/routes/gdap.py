@@ -19,6 +19,32 @@ router = APIRouter()
 _admin = Depends(require_role(Role.admin))
 
 
+def consent_url(customer_tenant_id: str, client_id: str) -> str:
+    """The admin-consent link that puts the partner app into one customer tenant.
+
+    GDAP grants roles to users, not to applications, so the hub's app-only
+    reads only work once the multi-tenant partner app has a service principal
+    with consent in the customer's tenant. That consent is a person's act in
+    the customer's tenant; the hub only hands over the link and never grants
+    anything itself.
+    """
+    tid = (customer_tenant_id or "").strip()
+    cid = (client_id or "").strip()
+    if not tid or not cid:
+        return ""
+    return f"https://login.microsoftonline.com/{tid}/adminconsent?client_id={cid}"
+
+
+def _log(action: str, detail: str, user: User, customer: str = "") -> None:
+    """GDAP changes go in the activity log like every other change to the registry."""
+    from app.core.activity_log import log_activity
+
+    try:
+        log_activity(action, detail=detail, customer=customer, user=user.username)
+    except Exception as exc:  # logging must never turn a done change into an error
+        logger.warning("activity log failed for %s: %s", action, exc)
+
+
 # ── Status ───────────────────────────────────────────────────────────────────
 
 
@@ -100,6 +126,7 @@ async def gdap_setup(body: GdapSetupRequest, request: Request, user: User = _adm
                 "validation_error": str(exc),
             }
         )
+        _log("gdap_setup", f"partner {partner_tenant_id[:8]}…, not validated", user)
         return {
             "ok": True,
             "validated": False,
@@ -125,6 +152,7 @@ async def gdap_setup(body: GdapSetupRequest, request: Request, user: User = _adm
     )
 
     logger.info("GDAP setup complete: %d customers found", customer_count)
+    _log("gdap_setup", f"partner {partner_tenant_id[:8]}…, {customer_count} customers", user)
     return {"ok": True, "validated": True, "customer_count": customer_count}
 
 
@@ -143,7 +171,15 @@ async def validate_gdap_customer(tenant_id: str, user: User = _admin):
 
             async with GraphClient(auth.credential) as graph:
                 result = await graph.validate_gdap_access()
-                return result
+        if not result.get("connectivity"):
+            # The usual cause: the partner app has no consent in this tenant
+            # yet. Say so and hand over the link instead of a bare AADSTS code.
+            from app.core.credentials import get_secret
+
+            result["consent_url"] = consent_url(
+                tenant_id, get_secret("gdap", "partner_client_id") or ""
+            )
+        return result
     except AuthError:
         raise
     except Exception as exc:
@@ -238,6 +274,7 @@ async def list_gdap_customers(user: User = _admin):
                 "local_customer_id": local.get("_id", "") if local else "",
                 "local_customer_name": local.get("CustomerName", "") if local else "",
                 "local_auth_mode": local.get("AuthMode", "legacy") if local else "",
+                "consent_url": consent_url(tid, partner_client or ""),
             }
         )
 
@@ -381,6 +418,13 @@ async def import_gdap_customers(body: GdapImportRequest, request: Request, user:
     save_gdap_config(gdap_cfg)
 
     logger.info("GDAP import: %d imported, %d skipped", len(imported), len(skipped))
+    for row in imported:
+        _log(
+            "gdap_customer_imported",
+            f"{row['action']}: tenant {row['tenant_id']}",
+            user,
+            customer=row["company_name"],
+        )
     return {"imported": imported, "skipped": skipped}
 
 
@@ -423,14 +467,23 @@ async def refresh_gdap_customers(user: User = _admin):
             local = local_gdap[tid]
             new_name = profile.get("companyName", "")
             new_domain = profile.get("domain", "")
-            if new_name and new_name != local.get("CustomerName"):
+            old_name = local.get("CustomerName", "")
+            old_domain = local.get("PrimaryDomain", "")
+            if new_name and new_name != old_name:
                 local["CustomerName"] = new_name
                 CustomerManager.save_customer(local)
                 updated += 1
-            if new_domain and new_domain != local.get("PrimaryDomain"):
+                _log("gdap_customer_renamed", f"{old_name} → {new_name}", user, customer=new_name)
+            if new_domain and new_domain != old_domain:
                 local["PrimaryDomain"] = new_domain
                 CustomerManager.save_customer(local)
                 updated += 1
+                _log(
+                    "gdap_customer_domain_changed",
+                    f"{old_domain} → {new_domain}",
+                    user,
+                    customer=local.get("CustomerName", ""),
+                )
 
     gdap_cfg = load_gdap_config() or {}
     gdap_cfg["last_customer_sync"] = datetime.now(UTC).isoformat()

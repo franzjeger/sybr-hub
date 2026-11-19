@@ -39,6 +39,27 @@ delegation through GDAP (`AuthMode: gdap`).
 **Secrets** (keyring): `client_secret`, `cert_password`. For GDAP:
 `partner_client_id`, `partner_client_secret` under the `gdap` tenant key.
 
+**GDAP mode, how access actually works.** GDAP gives roles to *users* in
+security groups; it does not let an application into a customer tenant. The
+hub reads app-only, so `AuthMode: gdap` means: one multi-tenant partner app
+(`scripts/new-partner-app.ps1`), consented once in the partner tenant and once
+in each customer tenant. The GDAP card shows a consent link per customer
+(`/adminconsent` against that customer's tenant); an admin of the customer
+(Global Admin or Privileged Role Administrator) clicks it. Until then audits
+and `/gdap/validate/{tenant}` fail to sign in, and the validate response
+carries the same link. Partner Center's customer list also needs the app
+added under Partner Center → Account settings → App management.
+
+The partner app's permissions are read-only by design and a test enforces it:
+one secret that reaches every customer must not be able to write to any of
+them. The list is `REQUIRED_GRAPH_PERMISSIONS` plus
+`DelegatedAdminRelationship.Read.All`. Exchange Online is skipped for GDAP
+customers (it needs a per-customer certificate). Conditional Access
+deployment still needs `Policy.ReadWrite.ConditionalAccess`, granted per
+customer. The hub never creates, changes or ends a GDAP relationship and makes
+no write call to Partner Center. GDAP setup, imports and refresh renames go in
+the activity log.
+
 **Permissions.** `app/core/config.py::REQUIRED_GRAPH_PERMISSIONS` is the single
 source. `GraphClient.REQUIRED_PERMISSIONS` imports it, and `setup_helper.ps1`
 is handed it on stdin — the array still in that script is a fallback for an
