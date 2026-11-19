@@ -61,11 +61,24 @@ def _check_exposure(host: str, ssl_cert: str | None) -> str | None:
     )
 
 
-def run() -> None:
+# HTTP client libraries log every request line, query string included, at INFO
+# (httpx) or DEBUG (httpcore). Guacamole takes its admin token as `?token=`, so
+# that line put a live credential in the journal. They stay at WARNING whatever
+# SYBR_HUB_LOG_LEVEL says: their failures still surface, their URLs do not.
+_QUIET_LOGGERS = ("httpx", "httpcore")
+
+
+def configure_logging() -> None:
     logging.basicConfig(
         level=os.environ.get("SYBR_HUB_LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)-8s %(name)s | %(message)s",
     )
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+def run() -> None:
+    configure_logging()
 
     import uvicorn
 
