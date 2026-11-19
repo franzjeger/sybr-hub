@@ -30,8 +30,9 @@ lockfile, restart).
 - **GDAP:** a partner app made by the old `scripts/new-partner-app.ps1` is
   single-tenant with `Directory.Read.All` only and cannot read customer
   tenants. Create a new one with the updated script (multi-tenant, read-only),
-  add it under Partner Center → Account settings → App management, enter its
-  ids on the GDAP card, then grant consent per customer with the link on that
+  grant it admin consent in the partner tenant, enter its ids on the GDAP card
+  (the customer list now comes from Graph, so Partner Center App management is
+  not needed), then grant consent per customer with the link on that
   card. Delete the old registration afterwards.
 - **`POST /api/baseline-deploy/{id}/plan` and `/apply`** now refuse with 400.
   Conditional Access deployment (`/api/policy-deploy/*`) is unchanged.

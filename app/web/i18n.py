@@ -1114,8 +1114,8 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "client_secret is required for initial setup",
     ),
     "err_gdap_saved_not_validated": (
-        "Legitimasjonen er lagret, men valideringen mot Partner Center feilet: {error}",
-        "Credentials saved but Partner Center validation failed: {error}",
+        "Legitimasjonen er lagret, men GDAP-kundelisten kunne ikke leses: {error}",
+        "Credentials saved but the GDAP customer list could not be read: {error}",
     ),
     "err_gdap_validation_failed": (
         "GDAP-validering feilet: {error}",
@@ -1130,16 +1130,16 @@ _ROUTE_REFUSALS: dict[str, tuple[str, str]] = {
         "GDAP is not configured. Set up partner credentials first.",
     ),
     "err_gdap_partner_center_error": (
-        "Feil fra Partner Center API: {error}",
-        "Partner Center API error: {error}",
+        "Feil ved lesing av GDAP-kunder: {error}",
+        "Error reading GDAP customers: {error}",
     ),
     "err_gdap_no_tenant_ids": (
         "Ingen tenant_ids oppgitt",
         "No tenant_ids provided",
     ),
     "err_gdap_not_in_partner_center": (
-        "Finnes ikke i Partner Center",
-        "Not found in Partner Center",
+        "Finnes ikke blant GDAP-kundene",
+        "Not among the GDAP customers",
     ),
     "err_gdap_customer_has_tenant": (
         "Kunden har allerede tenant {tenant}…",

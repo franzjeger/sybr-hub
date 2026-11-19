@@ -1,7 +1,8 @@
-"""Microsoft Partner Center REST API client.
+"""Microsoft Partner Center / GDAP client.
 
-Provides async access to customer lists and GDAP relationship management
-for MSP partners using Granular Delegated Admin Privileges.
+Read-only access to the partner's GDAP customers and relationships (Microsoft
+Graph) and, where the app is registered in Partner Center App management, to
+the Partner Center REST API. Nothing here writes.
 
 Auth: Client credentials OAuth2 against the partner tenant, with scope
 ``https://api.partnercenter.microsoft.com/.default``.
@@ -162,10 +163,49 @@ class PartnerCenterClient:
     # ── Customer operations ──────────────────────────────────────────────
 
     async def list_customers(self) -> list[dict]:
-        """List all customers visible to this partner.
+        """List the partner's GDAP customers, read from Microsoft Graph.
 
-        Returns a list of customer objects with companyProfile containing
-        tenantId, domain, and companyName.
+        Graph's ``delegatedAdminCustomers`` rather than Partner Center's
+        ``/v1/customers``: the Partner Center REST API only accepts an app-only
+        token from an app registered under Partner Center → App management, and
+        that registration is not always possible for an existing app. Graph
+        needs nothing beyond ``DelegatedAdminRelationship.Read.All``, which the
+        partner app already holds, and lists exactly the tenants GDAP reaches.
+
+        Returned in Partner Center's shape (``companyProfile`` with
+        ``tenantId``, ``companyName`` and ``domain``) so callers are unchanged.
+        Graph gives no domain here, so ``domain`` is empty.
+        """
+        items: list[dict] = []
+        url = "/tenantRelationships/delegatedAdminCustomers"
+        params: dict | None = {"$top": "300"}
+        while url:
+            data = await self._graph_get(url, params=params)
+            for c in data.get("value", []):
+                tid = c.get("tenantId") or c.get("id") or ""
+                if not tid:
+                    continue
+                items.append(
+                    {
+                        "id": tid,
+                        "companyProfile": {
+                            "tenantId": tid,
+                            "companyName": c.get("displayName", ""),
+                            "domain": "",
+                        },
+                    }
+                )
+            next_link = data.get("@odata.nextLink", "")
+            url = next_link.replace(_GRAPH_BASE, "") if next_link else ""
+            params = None
+        logger.info("GDAP: %d customers found", len(items))
+        return items
+
+    async def list_partner_center_customers(self) -> list[dict]:
+        """Partner Center's own customer list (CSP customers, with domains).
+
+        Needs the app registered under Partner Center → App management; without
+        that Partner Center answers 403. Not used by the GDAP routes.
         """
         result = await self._pc_get("/v1/customers", params={"size": 999})
         items = result.get("items", [])

@@ -47,8 +47,12 @@ in each customer tenant. The GDAP card shows a consent link per customer
 (`/adminconsent` against that customer's tenant); an admin of the customer
 (Global Admin or Privileged Role Administrator) clicks it. Until then audits
 and `/gdap/validate/{tenant}` fail to sign in, and the validate response
-carries the same link. Partner Center's customer list also needs the app
-added under Partner Center → Account settings → App management.
+carries the same link. The customer list comes from Graph
+(`tenantRelationships/delegatedAdminCustomers`), not Partner Center's
+`/v1/customers`: the Partner Center REST API only accepts app-only tokens from
+an app registered under Partner Center → App management, and "Register
+existing app" does not always list an app made in the tenant. Graph names no
+domain, so imported customers get their domain from the first audit.
 
 The partner app's permissions are read-only by design and a test enforces it:
 one secret that reaches every customer must not be able to write to any of
