@@ -111,7 +111,7 @@ The in-app live updater is disabled.
 
 ## Status
 
-The current release is **v1.3.0**; what has landed since is under «Ikke utgitt» in
+The current release is **v1.4.0**; what has landed since is under «Ikke utgitt» in
 [`CHANGELOG.md`](CHANGELOG.md). Versioning is semver from `v1.0.0`. The audit
 layer and report generator are carried forward from the earlier MSP-Toolkit
 engine, whose history lives in [`docs/HISTORY.md`](docs/HISTORY.md).
