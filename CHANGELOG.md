@@ -8,6 +8,10 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+Ingenting ennå.
+
+## v1.4.0 (2026-11-19)
+
 ### GDAP: én multi-tenant app med kun lesetilgang
 
 - GDAP gir roller til brukere, ikke til apper. Huben leser kundetenanter med
@@ -22,6 +26,11 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
   `/gdap/validate` returnerer samme lenke når innloggingen feiler.
 - GDAP-oppsett, import og navne- eller domeneendringer fra refresh skrives til
   aktivitetsloggen.
+- GDAP-kundelisten leses fra Microsoft Graph (`delegatedAdminCustomers`) i
+  stedet for Partner Center API-et. Partner Center svarer 403 til en app som
+  ikke er registrert under App management, og «Register existing app» viste
+  ikke appen. Graph oppgir ikke domene, så nye kunder får domenet fra første
+  audit.
 
 ### Utrulling av baseline er slått av
 

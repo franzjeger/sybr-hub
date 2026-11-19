@@ -111,3 +111,46 @@ def test_baseline_deploy_refuses_before_touching_a_tenant(name, monkeypatch):
     with pytest.raises(ValidationError):
         asyncio.run(getattr(baseline_deploy, name)("cust", req, _User()))
     assert touched == []
+
+
+# ── Customer list comes from Graph ───────────────────────────────────────────
+
+
+def test_customer_list_is_read_from_graph_in_partner_center_shape(monkeypatch):
+    """Partner Center's /v1/customers answers 403 to an app that is not in
+    Partner Center App management; Graph's delegatedAdminCustomers does not."""
+    from app.integrations.partner_center import _GRAPH_BASE, PartnerCenterClient
+
+    pages = {
+        "/tenantRelationships/delegatedAdminCustomers": {
+            "value": [
+                {"id": "t1", "tenantId": "t1", "displayName": "Acme AS"},
+                {"id": "", "tenantId": "", "displayName": "no tenant"},
+            ],
+            "@odata.nextLink": f"{_GRAPH_BASE}/tenantRelationships/delegatedAdminCustomers?$skiptoken=x",
+        },
+        "/tenantRelationships/delegatedAdminCustomers?$skiptoken=x": {
+            "value": [{"id": "t2", "tenantId": "t2", "displayName": "Beta AS"}],
+        },
+    }
+    seen = []
+
+    async def fake_graph_get(self, path, params=None):
+        seen.append(path)
+        return pages[path]
+
+    async def no_pc(self, *a, **k):
+        raise AssertionError("the customer list must not call the Partner Center API")
+
+    monkeypatch.setattr(PartnerCenterClient, "_graph_get", fake_graph_get)
+    monkeypatch.setattr(PartnerCenterClient, "_pc_get", no_pc)
+
+    async def run():
+        async with PartnerCenterClient("p", "c", "s") as pc:
+            return await pc.list_customers()
+
+    result = asyncio.run(run())
+    assert [c["companyProfile"]["tenantId"] for c in result] == ["t1", "t2"]
+    assert result[0]["companyProfile"]["companyName"] == "Acme AS"
+    assert result[0]["companyProfile"]["domain"] == ""
+    assert len(seen) == 2

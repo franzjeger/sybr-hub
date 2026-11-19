@@ -24,10 +24,8 @@
 #  this hub could leak. Writes (Conditional Access deployment) stay on the
 #  per-customer path, granted per customer.
 #
-#  What it cannot promise: that Partner Center accepts app-only access for the
-#  customer list. Microsoft requires the app to be added under Partner Center →
-#  Account settings → App management as well; this script cannot do that. The
-#  output tells you what to check.
+#  The hub reads the GDAP customer list from Microsoft Graph, so the app does
+#  not need to be registered under Partner Center → App management.
 #
 #  Requires: PowerShell 7+, Microsoft.Graph.Applications
 # ──────────────────────────────────────────────────────────────────────────────
@@ -207,8 +205,9 @@ Write-Host ''
 Write-Host '  Next steps (none of them done by this script):' -ForegroundColor Yellow
 Write-Host '    1. Admin consent in the partner tenant:'
 Write-Host "       https://login.microsoftonline.com/$tenantId/adminconsent?client_id=$($app.AppId)"
-Write-Host '    2. Partner Center → Account settings → App management: add this app id'
-Write-Host '       as a web app, so the customer list works with app-only sign-in.'
+Write-Host '    2. Paste the three values above into the GDAP card in Sybr HUB. The'
+Write-Host '       customer list is read from Graph; Partner Center App management is'
+Write-Host '       only needed for the Partner Center API, which the hub does not use.'
 Write-Host '    3. Per customer: open the consent link on the GDAP card in Sybr HUB and'
 Write-Host '       sign in as an admin of that customer (Global Admin or'
 Write-Host '       Privileged Role Administrator). Until then audits of that'
