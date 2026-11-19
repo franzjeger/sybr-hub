@@ -22,6 +22,22 @@ service. Restore the preserved checkout and data together if rollback is needed.
 
 ---
 
+# GDAP partner app and baseline deploy (November 2026, v1.4.0)
+
+No migration. Upgrade as above (`git fetch`, check out the tag, install the
+lockfile, restart).
+
+- **GDAP:** a partner app made by the old `scripts/new-partner-app.ps1` is
+  single-tenant with `Directory.Read.All` only and cannot read customer
+  tenants. Create a new one with the updated script (multi-tenant, read-only),
+  add it under Partner Center → Account settings → App management, enter its
+  ids on the GDAP card, then grant consent per customer with the link on that
+  card. Delete the old registration afterwards.
+- **`POST /api/baseline-deploy/{id}/plan` and `/apply`** now refuse with 400.
+  Conditional Access deployment (`/api/policy-deploy/*`) is unchanged.
+
+---
+
 # FortiGate fleet first read and card status (October 2026, v1.3.0)
 
 No migration. API changes for scripts that read these routes:

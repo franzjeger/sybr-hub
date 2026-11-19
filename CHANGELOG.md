@@ -8,6 +8,10 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+Ingenting ennå.
+
+## v1.4.0 (2026-11-19)
+
 ### GDAP: én multi-tenant app med kun lesetilgang
 
 - GDAP gir roller til brukere, ikke til apper. Huben leser kundetenanter med
