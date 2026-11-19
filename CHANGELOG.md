@@ -8,7 +8,29 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
-Ingenting ennå.
+### GDAP: én multi-tenant app med kun lesetilgang
+
+- GDAP gir roller til brukere, ikke til apper. Huben leser kundetenanter med
+  app-tilgang, så partner-appen må være multi-tenant og ha samtykke i hver
+  kundetenant. `scripts/new-partner-app.ps1` lager nå en slik app
+  (`AzureADMultipleOrgs`) med lesetillatelsene en audit trenger, pluss
+  `DelegatedAdminRelationship.Read.All` for å liste GDAP-relasjoner. Før var
+  appen single-tenant med bare `Directory.Read.All`, så innlogging i
+  kundetenanter og listing av relasjoner feilet. En test nekter tillatelser som
+  kan skrive.
+- GDAP-kortet viser en lenke per kunde for å gi samtykke i kundens tenant.
+  `/gdap/validate` returnerer samme lenke når innloggingen feiler.
+- GDAP-oppsett, import og navne- eller domeneendringer fra refresh skrives til
+  aktivitetsloggen.
+
+### Utrulling av baseline er slått av
+
+- `baseline-deploy` hadde en falsk plan og ekte skrivekall (blant annet
+  tenant-vid blokkering av brukersamtykke) uten fingeravtrykk,
+  gjenopprettingspunkt, sperre mot utestenging eller logg. Den krasjet før
+  første skriving, men ville gått live om noen rettet krasjet. Begge
+  endepunktene nekter nå før noe sendes til en tenant. Conditional
+  Access-utrulling påvirkes ikke.
 
 ## v1.3.0 (2026-11-19)
 

@@ -594,11 +594,12 @@ class GraphClient:
         return result
 
     async def validate_gdap_access(self) -> dict[str, Any]:
-        """Validate GDAP delegated access by probing key Graph endpoints.
+        """Validate the partner app's access to a GDAP customer by probing endpoints.
 
-        GDAP uses Azure AD role assignments (Global Reader, Security Reader)
-        rather than app-role permissions, so we probe endpoints directly
-        instead of inspecting appRoleAssignments.
+        The hub reads app-only: the multi-tenant partner app needs a service
+        principal with admin consent in the customer tenant. GDAP roles (which
+        belong to users) do not reach it. Endpoints are probed directly so the
+        answer reflects what an audit would actually be able to read.
         """
         result: dict[str, Any] = {
             "ok": False,

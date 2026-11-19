@@ -85,8 +85,11 @@ class AuthManager:
     def from_gdap(cls, customer_tenant_id: str) -> AuthManager:
         """Build AuthManager using GDAP partner credentials for a customer tenant.
 
-        Uses the single partner app registration to access any GDAP-linked
-        customer tenant.  No per-customer cert or secret needed.
+        Uses the single multi-tenant partner app registration, app-only. That
+        works in a customer tenant only after an admin there has consented to
+        the app (the consent link on the GDAP card); the GDAP relationship
+        itself gives roles to users and not to this app. No per-customer cert
+        or secret needed.
         """
         partner_client = get_secret("gdap", "partner_client_id")
         partner_secret = get_secret("gdap", "partner_client_secret")
