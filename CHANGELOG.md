@@ -8,6 +8,17 @@ juli 2026) ligger i [docs/HISTORY.md](docs/HISTORY.md).
 
 ## Ikke utgitt
 
+Ingenting ennå.
+
+## v1.3.0 (2026-11-19)
+
+### Guacamole-tokenet havner ikke i journalen
+
+- httpx logget hver forespørsel med hele URL-en på INFO-nivå. Guacamole tar
+  admin-tokenet som `?token=`, så et gyldig token ble skrevet til journalen
+  ved hver tilkobling. Loggerne `httpx` og `httpcore` står nå på WARNING
+  uansett `SYBR_HUB_LOG_LEVEL`. Feil fra dem vises fortsatt.
+
 ### Sikkerhetsoppdateringer i avhengigheter
 
 - DOMPurify 3.4.17 (vendret og låst) retter tre omgåelser av rensingen.

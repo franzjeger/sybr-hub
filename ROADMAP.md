@@ -339,7 +339,7 @@ or `MyITProcessClient` method signatures is a major bump.
 The `v0.2.0`–`v0.6.0` labels above are planning milestones, not release
 tags: that work shipped inside the `v1.0.0` and `v1.1.x` releases. The
 actual version is resolved from the git tag (see `app/core/version.py`),
-and the current release is `v1.2.0`.
+and the current release is `v1.3.0`.
 
 Release notes go in `CHANGELOG.md`. Each release should be testable
 end-to-end against at least one real customer tenant before tagging.
